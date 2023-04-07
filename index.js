@@ -5,7 +5,7 @@ const yargs = require("yargs/yargs");
 const { hideBin } = require("yargs/helpers");
 
 const { readdir, access, writeFile, readFile, mkdir } = require("fs/promises");
-const { join } = require("path");
+const { join, dirname } = require("path");
 
 
 const argv = yargs(hideBin(process.argv))
@@ -24,16 +24,26 @@ const argv = yargs(hideBin(process.argv))
 	.demandCommand(1)
 	.parse();
 
-async function process_file(root, ext, fname) {
-	let outFile = join(argv.outdir, ext, fname + ".bz2");
+async function saveFile(outFile, fromFile, compress = false) {
 	try {
 		await access(outFile);
 		console.log(`${outFile} exists, skipping`);
+	} catch(e) {
+		await mkdir(dirname(outFile), { recursive: true });
+		console.log(`${fromFile} -> ${outFile}`);
+		const fileData = await readFile(fromFile);
+		await writeFile(outFile, compress ? Bzip2.compressFile(fileData) : fileData);
 	}
-	catch (e) {
-		console.log(`${join(root, ext, fname)} -> ${outFile}`);
-		await mkdir(join(argv.outdir, ext), { recursive: true });
-		await writeFile(outFile, Bzip2.compressFile(await readFile(join(root, ext, fname))))
+}
+
+async function process_file(root, ext, fname) {
+	const outFile = join(argv.outdir, ext, fname).toLowerCase();
+	const fromFile = join(root, ext, fname);
+	await saveFile(outFile, fromFile);
+	await saveFile(outFile + ".bz2", fromFile, true);
+
+	if (fromFile !== fromFile.toLowerCase()) {
+		await saveFile(fromFile.toLowerCase(), fromFile, false);
 	}
 }
 
